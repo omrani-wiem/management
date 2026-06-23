@@ -18,4 +18,9 @@ def create_access_token(data: dict, expires_minutes: int = 60 * 24) -> str:
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
 
 
-def 
+def decode_access_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        return payload
+    except Exception as e:
+        raise ValueError("Invalid token") from e

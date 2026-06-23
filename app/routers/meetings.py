@@ -20,7 +20,7 @@ async def upload_meeting( title: str = Form(...), file: UploadFile = File(...), 
         raise HTTPException(400, f"Format non supporté: {file.content_type}")
     
     filename = f"{uuid.uuid4()}_{file.filename}"
-    filepath = os.path.koin(UPLOAD_DIR, filename)
+    filepath = os.path.join(UPLOAD_DIR, filename)
 
     with open(filepath, "wb") as f:
         content = await file.read()
