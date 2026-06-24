@@ -3,15 +3,17 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.meeting import Meeting
 from app.schemas.meeting import MeetingOut, MeetingDetail
+from app.workers.tasks import process_meeting
 import os
 import uuid
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 
-UPLOAD_DIR = "uploads"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-ALLOWED_TYPES = ["audio/mpeg", "audio/wav", "audio/mp4", "audio/webm", "audio/x-m4a"]
+ALLOWED_TYPES = ["audio/mpeg", "audio/wav", "audio/mp4", "audio/webm", "audio/x-m4a", "audio/m4a"]
 
 
 @router.post("/upload", response_model=MeetingOut)
@@ -31,8 +33,8 @@ async def upload_meeting( title: str = Form(...), file: UploadFile = File(...), 
     db.commit()
     db.refresh(meeting)
 
-     # NOTE: ici on appellera Celery plus tard (étape 6)
-    # transcribe_task.delay(str(meeting.id))
+    process_meeting.delay(str(meeting.id))
+    
 
     return meeting
 
