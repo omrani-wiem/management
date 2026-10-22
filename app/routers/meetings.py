@@ -1,8 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import Optional
 from app.database import get_db
-from app.models.meeting import Meeting
-from app.schemas.meeting import MeetingOut, MeetingDetail
+from app.models.meeting import Meeting, MeetingStatus
+from app.schemas.meeting import MeetingOut, MeetingDetail, MeetingCreate
 from app.workers.tasks import process_meeting
 import os
 import uuid
@@ -15,9 +16,23 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 ALLOWED_TYPES = ["audio/mpeg", "audio/wav", "audio/mp4", "audio/webm", "audio/x-m4a", "audio/m4a"]
 
+@router.post("/create", response_model=MeetingOut)
+def create_live_meeting(
+    payload: MeetingCreate,
+    db: Session = Depends(get_db)
+):
+    meeting = Meeting(
+        title=payload.title,
+        audio_path="live",
+        status=MeetingStatus.pending
+    )
+    db.add(meeting)
+    db.commit()
+    db.refresh(meeting)
+    return meeting
 
 @router.post("/upload", response_model=MeetingOut)
-async def upload_meeting( title: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_meeting( title: str = Form(...), file: UploadFile = File(...), participants: Optional[str] = Form(None), db: Session = Depends(get_db)):
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(400, f"Format non supporté: {file.content_type}")
     
@@ -28,7 +43,12 @@ async def upload_meeting( title: str = Form(...), file: UploadFile = File(...), 
         content = await file.read()
         f.write(content)
 
-    meeting = Meeting(title=title, audio_path=filepath)
+
+    participants_list = []
+    if participants:
+        participants_list = [p.strip() for p in participants.split(",") if p.strip()]
+
+    meeting = Meeting(title=title, audio_path=filepath, participants=", ".join(participants_list) if participants_list else None)
     db.add(meeting)
     db.commit()
     db.refresh(meeting)

@@ -1,79 +1,87 @@
 from groq import Groq
 from app.config import settings
+from app.schemas.meeting import MeetingAnalysis  # on va créer ce schema
 import json
 
 client = Groq(api_key=settings.groq_api_key)
 
-def summarize_transcript(transcript: str) -> str:
+
+def analyze_meeting(transcript: str, known_names: list[str] | None = None) -> dict:
     """
-    Génère un résumé concis de la transcription.
+    Un seul appel LLM qui retourne :
+    - résumé
+    - participants détectés
+    - tâches avec assignation + priorité + score de confiance
     """
+
+    participants_hint = ""
+    if known_names:
+        names_str = ", ".join(known_names)
+        participants_hint = f"""
+Les participants connus de cette réunion sont : {names_str}.
+- Pour "participants_detected", liste uniquement ceux dont tu entends la voix ou qui sont mentionnés.
+- Pour "assignee", utilise UNIQUEMENT un nom de cette liste. Si incertain, mets null.
+"""
+
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
             {
                 "role": "system",
-                "content": "Tu es un assistant qui résume des réunions professionnelles en français. Sois concis et clair."
+                "content": """Tu es un assistant Scrum Master expert en analyse de réunions professionnelles.
+Tu analyses des transcriptions et retournes une analyse structurée complète.
+Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans markdown."""
             },
             {
                 "role": "user",
-                "content": f"""Voici la transcription d'une réunion :
-
-{transcript}
-
-Génère un résumé en 5 phrases maximum qui capture les points essentiels discutés."""
-            }
-        ],
-        temperature=0.3,
-        max_tokens=500
-    )
-    return response.choices[0].message.content
-
-def extract_tasks(transcript: str) -> list:
-    """
-    Extrait les user stories / tâches Scrum depuis la transcription.
-    Retourne une liste JSON structurée.
-    """
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {
-                "role": "system",
-                "content": """Tu es un assistant Scrum Master expert. 
-Tu analyses des transcriptions de réunions et extrais les tâches sous forme de user stories.
-Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après."""
-            },
-            {
-                "role": "user",
-                "content": f"""Analyse cette transcription de réunion et extrais toutes les tâches mentionnées.
+                "content": f"""Analyse cette transcription de réunion d'équipe.
+{participants_hint}
 
 Transcription :
 {transcript}
 
 Réponds UNIQUEMENT avec ce JSON (sans texte autour) :
 {{
+  "summary": "Résumé clair en 5 phrases maximum",
+  "participants_detected": ["Nom 1", "Nom 2"],
   "tasks": [
     {{
-      "title": "Titre court de la tâche",
-      "description": "Description détaillée",
-      "assignee": "Nom de la personne assignée ou null",
+      "title": "Titre court et actionnable",
+      "description": "Ce qui doit être fait exactement",
+      "assignee": "Nom complet ou null",
+      "confidence": 0.95,
       "priority": "low|medium|high"
     }}
   ]
 }}
 
-Si aucune tâche n'est mentionnée, retourne {{"tasks": []}}"""
+Règles strictes :
+- confidence = 1.0 si le nom est explicitement mentionné avec la tâche
+- confidence = 0.7-0.9 si c'est fortement implicite
+- confidence < 0.7 → mets assignee à null
+- Si aucune tâche : "tasks": []
+- Si aucun participant détecté : "participants_detected": []"""
             }
         ],
         temperature=0.1,
-        max_tokens=1000
+        max_tokens=1500
     )
 
     raw = response.choices[0].message.content.strip()
 
+    # Nettoyer les éventuels backticks markdown
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
+
     try:
-        data = json.loads(raw)
-        return data.get("tasks", [])
+        return json.loads(raw)
     except json.JSONDecodeError:
-     
-        return []
+        # Fallback safe
+        return {
+            "summary": "Résumé indisponible.",
+            "participants_detected": [],
+            "tasks": []
+        }
