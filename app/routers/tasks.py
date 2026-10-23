@@ -1,34 +1,94 @@
+from datetime import date
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Query, Session
+
+from app.auth_utils import get_current_user
 from app.database import get_db
-from app.models.task import Task
+from app.models.meeting import Meeting
+from app.models.task import Task, TaskStatus
+from app.models.user import User
 from app.schemas.task import TaskOut, TaskUpdate
- 
+
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
- 
- 
+
+
+def _owned_tasks(db: Session, user: User) -> Query:
+    """Toutes les tâches des réunions de l'utilisateur (isolation des données)."""
+    return (
+        db.query(Task)
+        .join(Meeting, Task.meeting_id == Meeting.id)
+        .filter(Meeting.owner_id == user.id)
+    )
+
+
 @router.get("/", response_model=list[TaskOut])
-def list_all_tasks(db: Session = Depends(get_db)):
-    return db.query(Task).order_by(Task.id).all()
- 
- 
+def list_tasks(
+    status: TaskStatus | None = None,
+    assignee: str | None = None,
+    overdue: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Filtres optionnels : ?status=todo  ?assignee=Ali  ?overdue=true (échéance dépassée, non terminée)."""
+    query = _owned_tasks(db, current_user)
+    if status is not None:
+        query = query.filter(Task.status == status)
+    if assignee:
+        query = query.filter(func.lower(Task.assignee) == assignee.strip().lower())
+    if overdue:
+        query = query.filter(
+            Task.due_date.isnot(None),
+            Task.due_date < date.today(),
+            Task.status != TaskStatus.done,
+        )
+    return query.order_by(Task.created_at.desc()).all()
+
+
 @router.get("/meeting/{meeting_id}", response_model=list[TaskOut])
-def get_tasks_for_meeting(meeting_id: str, db: Session = Depends(get_db)):
-    return db.query(Task).filter(Task.meeting_id == meeting_id).all()
- 
- 
+def get_tasks_for_meeting(
+    meeting_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    meeting = (
+        db.query(Meeting)
+        .filter(Meeting.id == meeting_id, Meeting.owner_id == current_user.id)
+        .first()
+    )
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Réunion introuvable")
+    return (
+        db.query(Task)
+        .filter(Task.meeting_id == meeting_id)
+        .order_by(Task.created_at.desc())
+        .all()
+    )
+
+
 @router.patch("/{task_id}", response_model=TaskOut)
-def update_task(task_id: str, payload: TaskUpdate, db: Session = Depends(get_db)):
-    task = db.query(Task).filter(Task.id == task_id).first()
+def update_task(
+    task_id: UUID,
+    payload: TaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = _owned_tasks(db, current_user).filter(Task.id == task_id).first()
     if not task:
-        raise HTTPException(404, "Tâche non trouvée")
- 
-    if payload.status is not None:
-        task.status = payload.status
-    if payload.assignee is not None:
-        task.assignee = payload.assignee
- 
+        raise HTTPException(status_code=404, detail="Tâche introuvable")
+
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("status") is not None:
+        task.status = data["status"]
+    if data.get("priority") is not None:
+        task.priority = data["priority"]
+    if "assignee" in data:  # permet aussi de désassigner avec "assignee": null
+        task.assignee = data["assignee"].strip() if data["assignee"] else None
+    if "due_date" in data:  # idem : "due_date": null efface l'échéance
+        task.due_date = data["due_date"]
+
     db.commit()
     db.refresh(task)
     return task
- 
