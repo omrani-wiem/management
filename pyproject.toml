@@ -1,0 +1,18 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+extend-exclude = ["venv", "alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+# W292/W293 : espaces et saut de ligne final dans d'anciens fichiers (sans effet sur le code)
+ignore = ["W292", "W293"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/models/__init__.py" = ["F401"]   # ré-export volontaire : enregistre tous les modèles

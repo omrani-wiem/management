@@ -1,4 +1,19 @@
+# secrets
+.env
+
+# python
 venv/
+.venv/
 __pycache__/
 *.pyc
-.env
+.pytest_cache/
+.ruff_cache/
+
+# données locales
+uploads/
+*.db
+
+# éditeur / OS
+.vscode/
+.idea/
+.DS_Store

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "ex-1",
+    "question": "Qui doit envoyer le devis au client ?",
+    "answerable": true,
+    "evidence": ["enverra le devis"],
+    "answer_keywords": ["Ali"],
+    "meeting_title": "Sprint backend"
+  },
+  {
+    "id": "ex-2",
+    "question": "Quel budget a été fixé pour la campagne marketing ?",
+    "answerable": true,
+    "evidence": ["budget de la campagne"],
+    "answer_keywords": ["5000"]
+  },
+  {
+    "id": "ex-3",
+    "question": "Quelle est la capitale de l'Australie ?",
+    "answerable": false
+  }
+]

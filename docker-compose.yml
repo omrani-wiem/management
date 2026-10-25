@@ -1,0 +1,88 @@
+# Démarrage :  docker compose up --build
+# Avec un LLM local (Ollama) :  docker compose --profile local-llm up --build
+#   puis :  docker compose exec ollama ollama pull qwen2.5:7b   (et LLM_PROVIDER=ollama dans .env)
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/meetingai
+  REDIS_URL: redis://redis:6379/0
+  OLLAMA_URL: http://ollama:11434
+  EMBEDDING_CACHE_DIR: /models/fastembed   # modèle d'embedding mis en cache dans le volume
+
+services:
+  db:
+    image: pgvector/pgvector:pg16        # PostgreSQL 16 + extension pgvector (prête pour le RAG)
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: meetingai
+    ports:
+      - "5433:5432"          # accès depuis ta machine (5433 : évite le conflit avec un PostgreSQL local sur 5432)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d meetingai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment: *app-env
+    # applique les migrations puis démarre l'API
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads:/app/uploads
+      - models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment: *app-env
+    # 1 seul traitement à la fois : Whisper consomme beaucoup de mémoire
+    command: celery -A app.workers.tasks.celery_app worker --loglevel=info --concurrency=1
+    volumes:
+      - uploads:/app/uploads
+      - models:/models
+    depends_on:
+      api:
+        condition: service_healthy   # les migrations sont terminées quand l'API est saine
+
+  ollama:
+    image: ollama/ollama
+    profiles: ["local-llm"]
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  pgdata:
+  uploads:
+  models:
+  ollama:

@@ -7,6 +7,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models.meeting import Meeting, MeetingStatus
 from app.models.transcript import Transcript
+from app.services import rag
 from app.services.ai_processor import analyze_meeting
 from app.services.meeting_pipeline import (
     get_known_names,
@@ -80,6 +81,7 @@ def process_meeting(self, meeting_id: str, participants: list[str] | None = None
             db, meeting, analysis,
             typed_participants=participants or meeting.participants_list,
         )
+        rag.index_meeting_safe(db, meeting)   # recherche sémantique : n'empêche jamais la réunion d'être « done »
         logger.info(
             "Réunion %s traitée : %d tâches, %d décisions",
             meeting_id, len(saved["tasks"]), len(saved["decisions"]),
@@ -97,5 +99,26 @@ def process_meeting(self, meeting_id: str, participants: list[str] | None = None
             _mark_failed(db, meeting_id)
             raise
         raise self.retry(exc=exc, countdown=10 * (self.request.retries + 1))
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, max_retries=2)
+def index_meeting_task(self, meeting_id: str):
+    """(Ré)indexe une réunion pour la recherche RAG."""
+    if not settings.rag_enabled:
+        return {"skipped": "RAG désactivé"}
+    db = SessionLocal()
+    try:
+        meeting = db.get(Meeting, uuid.UUID(meeting_id))
+        if meeting is None:
+            return {"error": "Réunion introuvable"}
+        return {"chunks": rag.index_meeting(db, meeting)}
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Indexation de %s échouée (essai %d)", meeting_id, self.request.retries + 1)
+        if self.request.retries >= self.max_retries:
+            return {"error": str(exc)}
+        raise self.retry(exc=exc, countdown=15)
     finally:
         db.close()

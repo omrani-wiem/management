@@ -5,3 +5,4 @@ from app.models.task import Task
 from app.models.team import Team, TeamMember
 from app.models.decision import Decision
 from app.models.segment import TranscriptSegment
+from app.models.chunk import MeetingChunk

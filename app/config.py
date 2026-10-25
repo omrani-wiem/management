@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # LLM : "groq" (cloud) ou "ollama" (local)
     llm_provider: str = "groq"
     groq_api_key: str | None = None
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"
     llm_timeout_s: int = 300
@@ -23,8 +23,20 @@ class Settings(BaseSettings):
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
 
+    # RAG : recherche dans les réunions passées, avec citations
+    rag_enabled: bool = True
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"  # 384 dimensions, FR/EN/AR
+    embedding_cache_dir: str | None = None
+    rag_chunk_chars: int = 700          # taille cible d'un passage indexé
+    rag_top_k: int = 6                  # passages donnés au LLM
+    rag_candidates: int = 20            # candidats par méthode (vecteurs / mots-clés) avant fusion
+    rag_min_similarity: float = 0.25    # sous ce seuil (et sans mot-clé commun) : refus sans appeler le LLM
+
     cors_origins: str = "http://localhost:5173"
     max_upload_mb: int = 200
+
+    # Dev uniquement : crée les tables sans Alembic. En production : `alembic upgrade head`.
+    auto_create_tables: bool = False
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -11,7 +11,8 @@ from app.database import SessionLocal
 from app.models.meeting import Meeting, MeetingStatus
 from app.services.ai_processor import analyze_meeting
 from app.services.live_transcription import transcribe_chunk
-from app.workers.tasks import process_meeting
+from app.config import settings
+from app.workers.tasks import index_meeting_task, process_meeting
 from app.services.meeting_pipeline import (
     get_known_names,
     resolve_output_language,
@@ -187,6 +188,11 @@ async def live_meeting(websocket: WebSocket, meeting_id: str):
             return
 
         saved = save_analysis(db, meeting, analysis, typed_participants=meeting.participants_list)
+        if settings.rag_enabled:
+            try:
+                index_meeting_task.delay(str(meeting.id))   # recherche sémantique, en arrière-plan
+            except Exception:
+                logger.exception("Indexation RAG non planifiée pour %s", meeting_id)
         if notify:
             await _send(
                 websocket,
