@@ -114,6 +114,8 @@ toute base PostgreSQL dont le nom ne finit pas par `_test`.
 | GET | `/api/meetings/`, `/api/meetings/{id}` | liste paginée, détail (résumé, transcription, décisions) |
 | GET | `/api/meetings/{id}/segments` | transcription horodatée |
 | GET / PATCH | `/api/tasks/`, `/api/tasks/{id}` | tâches (filtres `status`, `assignee`, `overdue`) |
+| POST | `/api/tasks/{id}/jira` | créer un ticket Jira pour une tâche (si l'intégration est configurée) |
+| POST | `/api/tasks/{id}/jira/refresh` | actualiser le statut du ticket Jira lié |
 | * | `/api/team/...` | équipes, membres, `GET /api/team/members` (charge de travail) |
 | WS | `/api/live/meeting/{id}` | transcription en direct |
 | GET | `/health`, `/health/ready` | état du service, de la base et de Redis |
@@ -124,6 +126,16 @@ Toutes les routes, sauf inscription, connexion et `/health*`, exigent `Authoriza
 
 Voir `.env.example`. Variables principales : `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `LLM_PROVIDER` (`groq` ou `ollama`),
 `GROQ_API_KEY`, `OLLAMA_MODEL`, `WHISPER_MODEL` (au moins `small` pour l'arabe), `CORS_ORIGINS`, `MAX_UPLOAD_MB`.
+
+### Jira Cloud
+
+L'intégration est facultative et utilise un compte Jira Cloud commun au serveur. Configure `JIRA_BASE_URL`
+(URL HTTPS du site, par exemple `https://mon-espace.atlassian.net`), `JIRA_EMAIL`, `JIRA_API_TOKEN`
+(jeton API Atlassian) et `JIRA_PROJECT_KEY` dans `.env`. Applique ensuite `alembic upgrade head`.
+Pour une tâche extraite, appelle `POST /api/tasks/{id}/jira` afin de créer son ticket. La réponse de tâche
+contient la clé et l'URL Jira. `POST /api/tasks/{id}/jira/refresh` actualise ensuite `jira_status` depuis Jira.
+La création est manuelle et une tâche ne peut être liée qu'à un seul ticket. Les identifiants restent côté
+serveur ; l'API token doit être conservé dans un gestionnaire de secrets en production.
 
 ## Limites connues et suite
 

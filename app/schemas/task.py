@@ -17,6 +17,9 @@ class TaskOut(BaseModel):
     created_at: datetime | None = None
     due_date: date | None = None
     source_seconds: int | None = None
+    jira_issue_key: str | None = None
+    jira_issue_url: str | None = None
+    jira_status: str | None = None
 
     model_config = {"from_attributes": True}
 

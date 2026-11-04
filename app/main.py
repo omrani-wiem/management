@@ -37,6 +37,7 @@ app = FastAPI(
         {"name": "auth", "description": "Inscription et connexion (JWT)"},
         {"name": "meetings", "description": "Réunions : upload audio, détail, transcription horodatée"},
         {"name": "tasks", "description": "Tâches extraites des réunions"},
+        {"name": "jira", "description": "Création et actualisation manuelle des tickets Jira"},
         {"name": "team", "description": "Équipes et membres"},
         {"name": "live", "description": "Transcription en direct (WebSocket)"},
         {"name": "rag", "description": "Questions sur les réunions passées, avec citations"},

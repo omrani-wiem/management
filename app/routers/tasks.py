@@ -11,6 +11,7 @@ from app.models.meeting import Meeting
 from app.models.task import Task, TaskStatus
 from app.models.user import User
 from app.schemas.task import TaskOut, TaskUpdate
+from app.services import jira as jira_service
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -88,6 +89,53 @@ def update_task(
         task.assignee = data["assignee"].strip() if data["assignee"] else None
     if "due_date" in data:  # idem : "due_date": null efface l'échéance
         task.due_date = data["due_date"]
+
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@router.post("/{task_id}/jira", response_model=TaskOut)
+def create_jira_issue(
+    task_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = _owned_tasks(db, current_user).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tâche introuvable")
+    if task.jira_issue_key:
+        raise HTTPException(status_code=409, detail="Cette tâche est déjà liée à un ticket Jira")
+
+    meeting = db.query(Meeting).filter(Meeting.id == task.meeting_id).first()
+    try:
+        issue_key, issue_url = jira_service.create_issue(task, meeting.title)
+    except jira_service.JiraError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    task.jira_issue_key = issue_key
+    task.jira_issue_url = issue_url
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@router.post("/{task_id}/jira/refresh", response_model=TaskOut)
+def refresh_jira_issue(
+    task_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = _owned_tasks(db, current_user).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tâche introuvable")
+    if not task.jira_issue_key:
+        raise HTTPException(status_code=409, detail="Cette tâche n'est pas encore liée à un ticket Jira")
+
+    try:
+        task.jira_status = jira_service.get_issue_status(task.jira_issue_key)
+    except jira_service.JiraError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     db.commit()
     db.refresh(task)

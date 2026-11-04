@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     max_upload_mb: int = 200
 
+    # Jira Cloud : intégration optionnelle, commune aux utilisateurs du serveur
+    jira_base_url: str | None = None
+    jira_email: str | None = None
+    jira_api_token: str | None = None
+    jira_project_key: str | None = None
+
     # Dev uniquement : crée les tables sans Alembic. En production : `alembic upgrade head`.
     auto_create_tables: bool = False
 
