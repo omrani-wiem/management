@@ -15,6 +15,7 @@ produit la transcription horodatée, un résumé, les **décisions** prises et l
 - Authentification JWT, **isolation stricte des données** entre utilisateurs, limitation des tentatives de connexion
 - Équipes, membres et charge de travail par membre
 - **RAG** : poser une question sur toutes ses réunions passées et obtenir une réponse **avec citations** (réunion, minute, extrait) ; recherche hybride (vecteurs pgvector + mots-clés PostgreSQL) ; refus explicite quand l'information n'existe pas ; module d'**évaluation chiffrée** (`rag_eval`)
+- **Masquage PII** (e-mails, téléphones, IBAN valides, cartes valides) avant envoi au LLM/Jira, et **piste d'audit** des appels API authentifiés sans corps de requête
 - Migrations **Alembic**, tests **pytest** (SQLite ou PostgreSQL), CI GitHub Actions, Docker Compose
 
 ## Architecture
@@ -116,6 +117,7 @@ toute base PostgreSQL dont le nom ne finit pas par `_test`.
 | GET / PATCH | `/api/tasks/`, `/api/tasks/{id}` | tâches (filtres `status`, `assignee`, `overdue`) |
 | POST | `/api/tasks/{id}/jira` | créer un ticket Jira pour une tâche (si l'intégration est configurée) |
 | POST | `/api/tasks/{id}/jira/refresh` | actualiser le statut du ticket Jira lié |
+| GET | `/api/audit/` | historique paginé des appels API de l'utilisateur connecté (filtres `skip`, `limit`) |
 | * | `/api/team/...` | équipes, membres, `GET /api/team/members` (charge de travail) |
 | WS | `/api/live/meeting/{id}` | transcription en direct |
 | GET | `/health`, `/health/ready` | état du service, de la base et de Redis |
@@ -136,6 +138,21 @@ Pour une tâche extraite, appelle `POST /api/tasks/{id}/jira` afin de créer son
 contient la clé et l'URL Jira. `POST /api/tasks/{id}/jira/refresh` actualise ensuite `jira_status` depuis Jira.
 La création est manuelle et une tâche ne peut être liée qu'à un seul ticket. Les identifiants restent côté
 serveur ; l'API token doit être conservé dans un gestionnaire de secrets en production.
+
+### Masquage et piste d'audit
+
+Avant chaque appel aux fournisseurs LLM (Groq ou Ollama), les e-mails, numéros de téléphone, IBAN dont la
+clé de contrôle est valide et numéros de carte passant Luhn sont remplacés par des marqueurs. Le même
+masquage est appliqué aux titres et descriptions envoyés à Jira et aux réponses des LLM avant leur traitement.
+La piste d'audit (`GET /api/audit/`) consigne pour chaque requête HTTP API authentifiée l'utilisateur, la méthode,
+le modèle de route, l'identifiant de ressource UUID, le code HTTP, un identifiant de requête et la date.
+Elle ne stocke ni les corps de requête/réponse, ni les transcriptions, ni les jetons d'authentification.
+
+**Limite importante :** ce masquage protège les envois aux services LLM et Jira, mais ne modifie pas les
+transcriptions/audio déjà conservés dans PostgreSQL et `uploads/`, ni les données affichées à l'utilisateur.
+Il ne remplace pas le chiffrement au repos, les contrôles d'accès, la gestion des sauvegardes ni une politique
+de conservation/suppression des fichiers et journaux. Les événements d'audit n'ont pas encore de suppression
+automatique ; définis une durée de conservation adaptée avant un déploiement en production.
 
 ## Limites connues et suite
 

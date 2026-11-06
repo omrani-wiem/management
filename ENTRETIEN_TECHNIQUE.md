@@ -112,7 +112,7 @@ Le RAG réduit le risque de réponse non étayée, mais ne garantit pas l'absenc
 
 Les identifiants des principales entités sont des UUID. Les réunions portent l'identifiant de leur propriétaire. Les tâches sont rattachées à une réunion et l'accès aux tâches est filtré en rejoignant la réunion propriétaire.
 
-Les migrations Alembic du projet sont ordonnées : baseline, champs/index de réunions et tâches, puis passages RAG. En production, les changements de schéma doivent passer par une migration relue et appliquée, plutôt que par la création automatique des tables.
+Les migrations Alembic du projet sont ordonnées : baseline, champs/index de réunions et tâches, passages RAG, liens Jira, puis piste d'audit. En production, les changements de schéma doivent passer par une migration relue et appliquée, plutôt que par la création automatique des tables.
 
 ## 6. API à connaître
 
@@ -130,6 +130,7 @@ La documentation interactive générée par FastAPI est disponible sur `http://l
 | `GET` | `/api/meetings/{id}` | Lire le détail, la transcription et les décisions |
 | `GET` | `/api/meetings/{id}/segments` | Lire les segments horodatés |
 | `GET`, `PATCH` | `/api/tasks/`, `/api/tasks/{id}` | Filtrer et mettre à jour les tâches |
+| `GET` | `/api/audit/` | Lire l'historique paginé des appels API authentifiés du compte |
 | `GET`, `POST` | `/api/team/...` | Gérer équipes et membres |
 | `GET` | `/api/team/members` | Membres et charge de travail |
 | `POST` | `/api/rag/ask` | Poser une question et obtenir une réponse sourcée |
@@ -152,6 +153,8 @@ Les routes métier, sauf les routes publiques d'inscription, de connexion et de 
 - **Migrations** : Alembic assure l'évolution contrôlée du schéma.
 - **Secrets** : les clés API et secrets restent dans `.env` ou l'environnement de déploiement, jamais dans le dépôt ou dans ce guide.
 - **RAG** : sources explicitement numérotées, validation des citations et filtrage utilisateur. Les extraits de transcription sont traités comme des données non fiables dans le prompt.
+- **Masquage à l'envoi** : e-mails, téléphones, IBAN valides (contrôle modulo 97) et numéros de carte valides (Luhn) sont remplacés avant les appels LLM et l'envoi de tâches à Jira. Les réponses des LLM sont également filtrées.
+- **Traçabilité** : les appels HTTP API authentifiés sont inscrits dans `audit_events` avec utilisateur, méthode, modèle de route, identifiant de ressource, statut HTTP, date et identifiant de requête. `X-Request-ID` permet de retrouver la requête ; les corps et contenus de réunion ne sont pas copiés dans la piste d'audit.
 
 ### Limites à reconnaître honnêtement
 
@@ -161,6 +164,8 @@ Les routes métier, sauf les routes publiques d'inscription, de connexion et de 
 - Le modèle d'embedding peut devoir être téléchargé au premier usage et est mis en cache.
 - Les tests qui exigent pgvector ne sont pas couverts par le jeu rapide SQLite.
 - Les appels Groq envoient le contenu nécessaire à l'analyse à un service distant ; Ollama peut être utilisé pour une exécution locale, sous réserve d'avoir téléchargé le modèle local.
+- Le masquage protège les envois aux fournisseurs LLM et à Jira, mais ne nettoie pas les transcriptions/audio conservés en base et dans `uploads/`, ni les réponses affichées aux utilisateurs. Il ne constitue pas un chiffrement au repos.
+- La piste d'audit ne possède pas encore de politique automatique de purge : la durée de conservation, la suppression et les sauvegardes doivent être définies avant un déploiement en production.
 - Le seuil RAG par défaut est une valeur de départ, pas une performance démontrée. Il doit être calibré avec des données représentatives.
 - Les identifiants de modèles hébergés peuvent changer ou être retirés. Le choix du fournisseur et du modèle est configurable ; en cas d'erreur, consulter les journaux du worker et la documentation du fournisseur.
 

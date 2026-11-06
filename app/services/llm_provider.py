@@ -7,6 +7,7 @@ from typing import Protocol
 import httpx
 
 from app.config import settings
+from app.services.sensitive_data import redact_value
 
 logger = logging.getLogger(__name__)
 
@@ -28,24 +29,26 @@ class GroqProvider:
         self._client = Groq(api_key=settings.groq_api_key)
 
     def chat(self, messages: list[dict], json_mode: bool = False, max_tokens: int = 2000) -> str:
+        safe_messages = redact_value(messages)
         kwargs = {"response_format": {"type": "json_object"}} if json_mode else {}
         response = self._client.chat.completions.create(
             model=settings.groq_model,
-            messages=messages,
+            messages=safe_messages,
             temperature=0.1,
             max_tokens=max_tokens,
             **kwargs,
         )
-        return response.choices[0].message.content or ""
+        return redact_value(response.choices[0].message.content or "")
 
 
 class OllamaProvider:
     name = "ollama"
 
     def chat(self, messages: list[dict], json_mode: bool = False, max_tokens: int = 2000) -> str:
+        safe_messages = redact_value(messages)
         payload = {
             "model": settings.ollama_model,
-            "messages": messages,
+            "messages": safe_messages,
             "stream": False,
             "options": {"temperature": 0.1, "num_predict": max_tokens, "num_ctx": 8192},
         }
@@ -54,7 +57,7 @@ class OllamaProvider:
         url = f"{settings.ollama_url.rstrip('/')}/api/chat"
         response = httpx.post(url, json=payload, timeout=settings.llm_timeout_s)
         response.raise_for_status()
-        return response.json().get("message", {}).get("content", "") or ""
+        return redact_value(response.json().get("message", {}).get("content", "") or "")
 
 
 @lru_cache(maxsize=1)

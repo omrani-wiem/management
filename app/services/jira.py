@@ -5,6 +5,7 @@ import httpx
 
 from app.config import settings
 from app.models.task import Task
+from app.services.sensitive_data import redact_text
 
 
 @dataclass
@@ -37,14 +38,14 @@ def _configuration() -> tuple[str, str, str, str]:
 
 def create_issue(task: Task, meeting_title: str) -> tuple[str, str]:
     base_url, email, api_token, project_key = _configuration()
-    description = task.description or "Tâche extraite d'une réunion."
+    description = redact_text(task.description or "Tâche extraite d'une réunion.")
     content = [
         {"type": "paragraph", "content": [{"type": "text", "text": description}]},
-        {"type": "paragraph", "content": [{"type": "text", "text": f"Réunion : {meeting_title}"}]},
+        {"type": "paragraph", "content": [{"type": "text", "text": f"Réunion : {redact_text(meeting_title)}"}]},
     ]
     fields = {
         "project": {"key": project_key},
-        "summary": task.title,
+        "summary": redact_text(task.title),
         "description": {"type": "doc", "version": 1, "content": content},
         "issuetype": {"name": "Task"},
         "priority": {"name": {"high": "High", "medium": "Medium", "low": "Low"}[task.priority.value]},

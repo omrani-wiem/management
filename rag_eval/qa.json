@@ -1,0 +1,54 @@
+[
+  {
+    "id": "roles-modeles",
+    "question": "Qui développe les modèles d'intelligence artificielle et évalue leurs performances ?",
+    "answerable": true,
+    "evidence": ["développement des modèles DIA et de l'évaluation de leur performance"],
+    "answer_keywords": ["Mariem"],
+    "meeting_title": "reunion equipe AI"
+  },
+  {
+    "id": "roles-donnees",
+    "question": "Qui prend en charge la collecte et la préparation des données du projet ?",
+    "answerable": true,
+    "evidence": ["collecte, du nettoyage et de la préparation des données nécessaires au projet"],
+    "answer_keywords": ["Ahmed"],
+    "meeting_title": "reunion equipe AI"
+  },
+  {
+    "id": "roles-integration",
+    "question": "Qui est responsable de l'intégration, des tests et de la vérification des résultats ?",
+    "answerable": true,
+    "evidence": ["responsable de l'intégration des fonctionnalités DIA, des tests et de la vérification des résultats"],
+    "answer_keywords": ["Noia"],
+    "meeting_title": "reunion equipe AI"
+  },
+  {
+    "id": "suivi-avancement",
+    "question": "Comment chaque membre doit-il tenir l'équipe au courant de son travail ?",
+    "answerable": true,
+    "evidence": ["partagera régulièrement son avancement avec l'équipe"],
+    "answer_keywords": ["avancement"],
+    "meeting_title": "reunion equipe AI"
+  },
+  {
+    "id": "reunions-suivi",
+    "question": "À quoi serviront les réunions de suivi ?",
+    "answerable": true,
+    "evidence": ["pour résoudre les problèmes et coordonner le travail"],
+    "answer_keywords": ["problèmes", "coordonner"],
+    "meeting_title": "reunion equipe AI"
+  },
+  {
+    "id": "budget",
+    "question": "Quel budget a été alloué au projet d'intelligence artificielle ?",
+    "answerable": false,
+    "meeting_title": "reunion equipe AI"
+  },
+  {
+    "id": "date-limite",
+    "question": "Quelle est la date limite prévue pour terminer le projet ?",
+    "answerable": false,
+    "meeting_title": "reunion equipe AI"
+  }
+]

@@ -19,12 +19,21 @@ def test_ollama_request_shape(monkeypatch):
 
     def fake_post(url, json=None, timeout=None):
         captured.update(url=url, payload=json, timeout=timeout)
-        return SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"message": {"content": '{"ok": 1}'}})
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"message": {"content": "Contact alice@example.com, carte 4111 1111 1111 1111"}},
+        )
 
     monkeypatch.setattr(settings, "llm_provider", "ollama")
     monkeypatch.setattr(httpx, "post", fake_post)
-    out = llm_provider.get_llm().chat([{"role": "user", "content": "salut"}], json_mode=True, max_tokens=123)
-    assert out == '{"ok": 1}'
+    out = llm_provider.get_llm().chat(
+        [{"role": "user", "content": "Contact alice@example.com, carte 4111 1111 1111 1111"}],
+        json_mode=True,
+        max_tokens=123,
+    )
+    assert out == "Contact [EMAIL], carte [CARD]"
+    assert "alice@example.com" not in captured["payload"]["messages"][0]["content"]
+    assert "4111 1111 1111 1111" not in captured["payload"]["messages"][0]["content"]
     assert captured["url"].endswith("/api/chat")
     assert captured["payload"]["format"] == "json" and captured["payload"]["stream"] is False
     assert captured["payload"]["options"]["num_predict"] == 123

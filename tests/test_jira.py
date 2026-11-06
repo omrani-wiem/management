@@ -64,8 +64,8 @@ def test_jira_rest_payload_and_authentication(monkeypatch):
 
     monkeypatch.setattr(jira.httpx, "Client", Client)
     task = SimpleNamespace(
-        title="Envoyer le devis",
-        description="Envoyer le devis au client.",
+        title="Contacter alice@example.com",
+        description="Utiliser l'IBAN GB82 WEST 1234 5698 7654 32 et la carte 4111 1111 1111 1111.",
         priority=TaskPriority.high,
         due_date=date(2026, 12, 1),
     )
@@ -77,7 +77,10 @@ def test_jira_rest_payload_and_authentication(monkeypatch):
     assert requests[1]["url"] == "https://example.atlassian.net/rest/api/3/issue"
     fields = requests[1]["payload"]["fields"]
     assert fields["project"] == {"key": "MEET"}
-    assert fields["summary"] == "Envoyer le devis"
+    assert fields["summary"] == "Contacter [EMAIL]"
+    jira_description = str(fields["description"])
+    assert "GB82 WEST 1234 5698 7654 32" not in jira_description
+    assert "4111 1111 1111 1111" not in jira_description
     assert fields["priority"] == {"name": "High"}
     assert fields["duedate"] == "2026-12-01"
 
